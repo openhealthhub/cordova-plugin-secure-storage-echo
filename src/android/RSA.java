@@ -19,7 +19,7 @@ import javax.crypto.Cipher;
 public class RSA extends AbstractRSA {
 
     @TargetApi(Build.VERSION_CODES.M)
-    public boolean isEntryAvailable(String alias) {
+    public boolean isEntryAvailable(String alias) throws AliasMissingFromKeystoreException {
         try {
             Key privateKey = loadKey(Cipher.DECRYPT_MODE, alias);
             if (privateKey == null) {
@@ -28,6 +28,8 @@ public class RSA extends AbstractRSA {
             KeyFactory factory = KeyFactory.getInstance(privateKey.getAlgorithm(), KEYSTORE_PROVIDER);
             KeyInfo keyInfo = factory.getKeySpec(privateKey, KeyInfo.class);
             return keyInfo.isInsideSecureHardware();
+        } catch (AliasMissingFromKeystoreException e) {
+            throw e;
         } catch (Exception e) {
             Log.i(TAG, "Checking encryption keys failed.", e);
             return false;

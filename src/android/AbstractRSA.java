@@ -21,7 +21,7 @@ public abstract class AbstractRSA {
 
     abstract AlgorithmParameterSpec getInitParams(Context ctx, String alias, Integer userAuthenticationValidityDuration) throws Exception;
 
-    boolean encryptionKeysAvailable(String alias) {
+    boolean encryptionKeysAvailable(String alias) throws AliasMissingFromKeystoreException {
         return isEntryAvailable(alias);
     }
 
@@ -65,14 +65,14 @@ public abstract class AbstractRSA {
         return runCipher(Cipher.DECRYPT_MODE, alias, buf);
     }
 
-    protected abstract boolean isEntryAvailable(String alias);
+    protected abstract boolean isEntryAvailable(String alias) throws AliasMissingFromKeystoreException;
 
     Key loadKey(int cipherMode, String alias) throws Exception {
         KeyStore keyStore = KeyStore.getInstance(KEYSTORE_PROVIDER);
         keyStore.load(null, null);
 
         if (!keyStore.containsAlias(alias)) {
-            throw new Exception("KeyStore doesn't contain alias: " + alias);
+            throw new AliasMissingFromKeystoreException("KeyStore doesn't contain alias: " + alias);
         }
 
         Key key;

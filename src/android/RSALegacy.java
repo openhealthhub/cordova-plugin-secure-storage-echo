@@ -15,9 +15,11 @@ import javax.security.auth.x500.X500Principal;
 public class RSALegacy extends AbstractRSA {
 
     @Override
-    public boolean isEntryAvailable(String alias) {
+    public boolean isEntryAvailable(String alias) throws AliasMissingFromKeystoreException {
         try {
             return loadKey(Cipher.ENCRYPT_MODE, alias) != null;
+        } catch (AliasMissingFromKeystoreException e) {
+            throw e;
         } catch (Exception e) {
             return false;
         }

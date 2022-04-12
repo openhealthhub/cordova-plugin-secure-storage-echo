@@ -8,7 +8,6 @@ import android.os.Build;
 import android.provider.Settings;
 import android.util.Base64;
 import android.util.Log;
-
 import org.apache.cordova.CallbackContext;
 import org.apache.cordova.CordovaArgs;
 import org.apache.cordova.CordovaPlugin;
@@ -18,15 +17,16 @@ import org.json.JSONObject;
 
 import java.lang.reflect.Method;
 import java.util.Hashtable;
-import java.util.Map;
 
 public class SecureStorage extends CordovaPlugin {
     private static final String TAG = "SecureStorage";
 
     private static final boolean SUPPORTED = Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT;
-    private static final Integer DEFAULT_AUTHENTICATION_VALIDITY_TIME = 60 * 60 * 24; // Fallback to 24h. Workaround to avoid asking for credentials too "often"
+    private static final Integer DEFAULT_AUTHENTICATION_VALIDITY_TIME = 60 * 60 * 24; // Fallback to 24h. Workaround to avoid asking for
+    // credentials too "often"
 
-    private static final String MSG_NOT_SUPPORTED = "API 19 (Android 4.4 KitKat) is required. This device is running API " + Build.VERSION.SDK_INT;
+    private static final String MSG_NOT_SUPPORTED =
+            "API 19 (Android 4.4 KitKat) is required. This device is running API " + Build.VERSION.SDK_INT;
     private static final String MSG_DEVICE_NOT_SECURE = "Device is not secure";
     private static final String MSG_KEYS_FAILED = "Generate RSA Encryption Keys failed. ";
 
@@ -100,12 +100,13 @@ public class SecureStorage extends CordovaPlugin {
 
             SharedPreferencesHandler PREFS = new SharedPreferencesHandler(alias, ctx);
             SERVICE_STORAGE.put(service, PREFS);
+            Integer userAuthenticationValidityDuration = options.optInt("userAuthenticationValidityDuration",
+                    DEFAULT_AUTHENTICATION_VALIDITY_TIME);
             if (!isDeviceSecure()) {
                 Log.e(TAG, MSG_DEVICE_NOT_SECURE);
                 callbackContext.error(MSG_DEVICE_NOT_SECURE);
-            } else if (!rsa.encryptionKeysAvailable(alias)) {
+            } else if (!areEncryptionKeysAvailable(alias, userAuthenticationValidityDuration)) {
                 // Encryption Keys aren't available, proceed to generate them
-                Integer userAuthenticationValidityDuration = options.optInt("userAuthenticationValidityDuration", DEFAULT_AUTHENTICATION_VALIDITY_TIME);
                 generateKeysContext = callbackContext;
                 generateEncryptionKeys(userAuthenticationValidityDuration);
                 if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.KITKAT) {
@@ -202,6 +203,26 @@ public class SecureStorage extends CordovaPlugin {
         return false;
     }
 
+    private boolean areEncryptionKeysAvailable(String alias, Integer userAuthenticationValidityDuration) {
+        try {
+            return rsa.encryptionKeysAvailable(alias);
+        } catch (AliasMissingFromKeystoreException e) {
+            safeRecreateKeyPair(alias, userAuthenticationValidityDuration);
+            return false;
+        } catch (Exception e) {
+            Log.i(TAG, "Checking encryption keys failed.", e);
+            return false;
+        }
+    }
+
+    private void safeRecreateKeyPair(String alias, Integer userAuthenticationValidityDuration) {
+        try {
+            recreateKeyPair(alias, userAuthenticationValidityDuration);
+        } catch (Exception ex) {
+            Log.i(TAG, "Recreating keypair failed.", ex);
+        }
+    }
+
     private boolean isDeviceSecure() {
         KeyguardManager keyguardManager = (KeyguardManager) (getContext().getSystemService(Context.KEYGUARD_SERVICE));
         try {
@@ -274,9 +295,9 @@ public class SecureStorage extends CordovaPlugin {
                     try {
                         String alias = service2alias(INIT_SERVICE);
                         SharedPreferencesHandler storage = getStorage(INIT_SERVICE);
-                        //Solves Issue #96. The RSA key may have been deleted by changing the lock type.
-                        getStorage(INIT_SERVICE).clear();
-                        rsa.createKeyPair(getContext(), alias, userAuthenticationValidityDuration);
+                        if (storage.isEmpty()) {
+                            recreateKeyPair(alias, userAuthenticationValidityDuration);
+                        }
                         generateKeysContext.success();
                     } catch (Exception e) {
                         Log.e(TAG, MSG_KEYS_FAILED, e);
@@ -288,6 +309,12 @@ public class SecureStorage extends CordovaPlugin {
                 }
             });
         }
+    }
+
+    private void recreateKeyPair(String alias, Integer userAuthenticationValidityDuration) throws Exception {
+        //Solves Issue #96. The RSA key may have been deleted by changing the lock type.
+        getStorage(INIT_SERVICE).clear();
+        rsa.createKeyPair(getContext(), alias, userAuthenticationValidityDuration);
     }
 
     /**

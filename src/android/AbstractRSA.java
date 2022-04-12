@@ -8,6 +8,7 @@ import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.KeyPairGenerator;
 import java.security.KeyStore;
+import java.security.UnrecoverableKeyException;
 import java.security.spec.AlgorithmParameterSpec;
 
 import javax.crypto.Cipher;
@@ -21,7 +22,7 @@ public abstract class AbstractRSA {
 
     abstract AlgorithmParameterSpec getInitParams(Context ctx, String alias, Integer userAuthenticationValidityDuration) throws Exception;
 
-    boolean encryptionKeysAvailable(String alias) throws AliasMissingFromKeystoreException {
+    boolean encryptionKeysAvailable(String alias) throws KeystoreInvalidatedException {
         return isEntryAvailable(alias);
     }
 
@@ -65,16 +66,24 @@ public abstract class AbstractRSA {
         return runCipher(Cipher.DECRYPT_MODE, alias, buf);
     }
 
-    protected abstract boolean isEntryAvailable(String alias) throws AliasMissingFromKeystoreException;
+    protected abstract boolean isEntryAvailable(String alias) throws KeystoreInvalidatedException;
 
     Key loadKey(int cipherMode, String alias) throws Exception {
         KeyStore keyStore = KeyStore.getInstance(KEYSTORE_PROVIDER);
         keyStore.load(null, null);
 
         if (!keyStore.containsAlias(alias)) {
-            throw new AliasMissingFromKeystoreException("KeyStore doesn't contain alias: " + alias);
+            throw new KeystoreInvalidatedException("KeyStore doesn't contain alias: " + alias);
         }
 
+        try {
+            return loadKey(cipherMode, alias, keyStore);
+        } catch (UnrecoverableKeyException ex) {
+            throw new KeystoreInvalidatedException("KeyStore contained values encrypted with an old key");
+        }
+    }
+
+    private Key loadKey(int cipherMode, String alias, KeyStore keyStore) throws Exception {
         Key key;
         switch (cipherMode) {
             case Cipher.ENCRYPT_MODE:

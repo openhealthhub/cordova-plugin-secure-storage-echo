@@ -206,7 +206,7 @@ public class SecureStorage extends CordovaPlugin {
     private boolean areEncryptionKeysAvailable(String alias, Integer userAuthenticationValidityDuration) {
         try {
             return rsa.encryptionKeysAvailable(alias);
-        } catch (AliasMissingFromKeystoreException e) {
+        } catch (KeystoreInvalidatedException e) {
             safeRecreateKeyPair(alias, userAuthenticationValidityDuration);
             return false;
         } catch (Exception e) {
